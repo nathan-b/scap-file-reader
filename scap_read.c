@@ -1,0 +1,309 @@
+#include <errno.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include <scap_savefile.h>
+
+#define BYTE_ORDER_MAGIC 0x1A2B3C4D
+#define SHB_BLOCK_TYPE 0x0A0D0D0A
+
+#define NS_PER_MS 1000000
+
+typedef struct
+{
+	uint32_t byte_order_magic;
+	uint16_t major_version;
+	uint16_t minor_version;
+	uint64_t section_length;
+} section_header;
+
+typedef struct
+{
+	uint64_t ts_ns;    // Timestamp, in nanoseconds from epoch
+	uint64_t tid;      // tid of the thread that generated this event
+	uint32_t len;      // Event length, including this header
+	uint16_t type;     // Event type
+	uint32_t nparams;  // Number of parameters to the event
+} event_header;
+
+#pragma pack(1)
+typedef struct
+{
+	uint16_t cpuid;
+	uint32_t flags;
+	event_header header;
+} event_section_header_flags;
+
+#pragma pack(1)
+typedef struct
+{
+	uint16_t cpuid;
+	event_header header;
+} event_section_header_no_flags;
+
+////////////////////////////
+// Globals
+uint64_t g_first_ns = 0;
+uint64_t g_last_ns = 0;
+bool g_verbose = false;
+
+////////////////////////////
+// Block handlers
+
+void print_event(const event_header* const pevent)
+{
+	if (pevent)
+	{
+		if (g_first_ns == 0)
+		{
+			g_first_ns = pevent->ts_ns;
+		}
+		g_last_ns = pevent->ts_ns;
+		if (g_verbose)
+		{
+			printf("\tEvent type=%u, ts=%llu, tid=%llu, len=%u\n", 
+				   pevent->type, 
+				   (long long unsigned)pevent->ts_ns, 
+				   (long long unsigned)pevent->tid, 
+				   pevent->len);
+		}
+	}
+}
+
+void handle_event(block_header* bh, const uint8_t* const buffer)
+{
+	// Flags
+	event_section_header_flags* esh = (event_section_header_flags*)buffer;
+	if (g_verbose)
+	{
+		printf("\tcpuid=%hu flags=0x%x", esh->cpuid, esh->flags);
+	}
+	print_event(&esh->header);
+}
+
+void handle_event_no_flags(block_header* bh, const uint8_t* const buffer)
+{
+	// No flags
+	event_section_header_no_flags* esh = (event_section_header_no_flags*)buffer;
+	if (g_verbose)
+	{
+		printf("\tcpuid=%hu flags=0x0", esh->cpuid);
+	}
+	print_event(&esh->header);
+}
+
+void handle_proc_list(block_header* bh, const uint8_t* const buffer)
+{
+	if (bh->block_type != PL_BLOCK_TYPE_V9)
+	{
+		fprintf(stderr, "Proc list block type is too old (%d), unsupported\n", bh->block_type);
+		return;
+	}
+	printf("Found proc list block\n");
+}
+
+// Parse through the scap file
+int32_t scap_read(const char* filename)
+{
+	FILE* f = NULL;
+	int ret = 0;
+	uint32_t buf_len = 10 * 1024 * 1024;  // 10m should be enough for anybody, right?
+	uint8_t* readbuf = malloc(buf_len);
+	block_header bh;
+	section_header sh;
+	uint32_t bt;  // Block trailer
+	uint32_t num_events = 0;
+
+	// Open the file
+	f = fopen(filename, "rb");
+	if (!f)
+	{
+		fprintf(stderr, "Could not open file %s: %d (%s)\n", filename, errno, strerror(errno));
+		ret = 1;
+		goto done;
+	}
+
+	// Read the section header block
+	if (fread(&bh, 1, sizeof(bh), f) != sizeof(bh) || 
+	    fread(&sh, 1, sizeof(sh), f) != sizeof(sh) ||
+	    fread(&bt, 1, sizeof(bt), f) != sizeof(bt))
+	{
+		fprintf(stderr, "Error reading from file %s: %d (%s)\n", filename, errno, strerror(errno));
+		ret = 1;
+		goto done;
+	}
+	else
+	{
+		printf("block_header: block_type=0x%x, block_total_len=%u\n", bh.block_type, bh.block_total_length);
+		printf("section_header_block: \n\tbyte_order_magic=0x%x,\n\tversion=%d.%d\n",
+		       sh.byte_order_magic,
+		       sh.major_version,
+		       sh.minor_version);
+		printf("bt=%u\n", bt);
+
+		// Do some sanity checking on the header
+		if (bh.block_type != SHB_BLOCK_TYPE)
+		{
+			fprintf(stderr,
+			        "Error reading section header: unexpected block type (%x != %x)\n",
+			        bh.block_type,
+			        SHB_BLOCK_TYPE);
+		}
+
+		if (sh.byte_order_magic != BYTE_ORDER_MAGIC)
+		{
+			fprintf(stderr,
+			        "Error reading section header: byte order magic mismatch (%x != %x)\n",
+			        sh.byte_order_magic,
+			        BYTE_ORDER_MAGIC);
+		}
+	}
+
+	// Read all blocks in the capture
+	while (1)
+	{
+		//
+		// Read block header
+		//
+		if (fread(&bh, 1, sizeof(bh), f) != sizeof(bh))
+		{
+			ret = 0;
+			goto done;
+		}
+		else if (g_verbose)
+		{
+			printf("block_header: block_type=0x%x, block_total_len=%u\n", bh.block_type, bh.block_total_length);
+		}
+
+		//
+		// Read the whole block up to the trailer
+		//
+		int expected_len = bh.block_total_length - sizeof(bh) - sizeof(bt);
+		if (expected_len > buf_len)
+		{
+			// We're going to need a bigger boat
+			free(readbuf);
+			readbuf = malloc(expected_len);
+			if (!readbuf)
+			{
+				fprintf(stderr, "Could not allocate %d bytes of buffer memory\n", expected_len);
+				ret = 1;
+				goto done;
+			}
+		}
+		int read_len = fread(readbuf, 1, expected_len, f);
+		if (read_len != expected_len)
+		{
+			fprintf(stderr, "Could not read block (expected length of %d, got length of %d)\n", expected_len, read_len);
+			ret = 1;
+			goto done;
+		}
+		
+		//
+		// Process the block
+		//
+		switch (bh.block_type)
+		{
+		case EVF_BLOCK_TYPE:
+		case EVF_BLOCK_TYPE_V2:
+		case EVF_BLOCK_TYPE_V2_LARGE:
+			++num_events;
+			handle_event(&bh, readbuf);
+			break;
+		case EV_BLOCK_TYPE:
+		case EV_BLOCK_TYPE_V2:
+		case EV_BLOCK_TYPE_V2_LARGE:
+			++num_events;
+			handle_event_no_flags(&bh, readbuf);
+			break;
+		case PL_BLOCK_TYPE_V1:
+		case PL_BLOCK_TYPE_V2:
+		case PL_BLOCK_TYPE_V3:
+		case PL_BLOCK_TYPE_V4:
+		case PL_BLOCK_TYPE_V5:
+		case PL_BLOCK_TYPE_V6:
+		case PL_BLOCK_TYPE_V7:
+		case PL_BLOCK_TYPE_V8:
+		case PL_BLOCK_TYPE_V9:
+		case PL_BLOCK_TYPE_V1_INT:
+		case PL_BLOCK_TYPE_V2_INT:
+		case PL_BLOCK_TYPE_V3_INT:
+			handle_proc_list(&bh, readbuf);
+			break;
+		default:
+			// Carry on
+		}
+
+		//
+		// Read the trailer
+		//
+		read_len = fread(&bt, 1, sizeof(bt), f);
+		if (read_len != sizeof(bt))
+		{
+			fprintf(stderr, "Could not read block trailer: %d (%s)\n", errno, strerror(errno));
+			ret = 1;
+			goto done;
+		}
+		if (g_verbose)
+		{
+			printf("block trailer: %u\n", bt);
+		}
+		if (bt != bh.block_total_length)
+		{
+			fprintf(stderr,
+			        "Malformed block: length mismatch between header and trailer (%u != %u)\n",
+			        bh.block_total_length,
+			        bt);
+		}
+	}
+
+done:
+	if (ret == 0)
+	{
+		printf("File is correctly formed and contains %u events between %llu and %llu (%llu ms)\n", 
+				num_events, 
+				(long long unsigned)g_first_ns, 
+				(long long unsigned)g_last_ns, 
+				(long long unsigned)((g_last_ns - g_first_ns) / NS_PER_MS));
+	}
+	if (readbuf)
+	{
+		free(readbuf);
+	}
+	return ret;
+}
+
+void usage(const char* progname)
+{
+	printf("Usage: %s [-v] <scap file>\n", progname);
+}
+
+int main(int argc, char** argv)
+{
+	// Command line parsing (this is garbage, I know)
+	for (int i = 1; i < argc; ++i)
+	{
+		if (argv[i][0] == '-')
+		{
+			switch (argv[i][1])
+			{
+			case 'v':
+				g_verbose = true;
+				break;
+			default:
+				fprintf(stderr, "Unknown switch %s\n", argv[i]);
+				usage(argv[0]);
+				return -1;
+			}
+		}
+		else
+		{
+			printf("Capture file %s\n=======================================\n", argv[i]);
+			scap_read(argv[i]);
+		}
+	}
+	return 0;
+}
