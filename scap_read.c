@@ -187,14 +187,12 @@ void print_event(const event_header* const pevent)
 			g_first_ns = pevent->ts_ns;
 		}
 		g_last_ns = pevent->ts_ns;
-		if (g_verbose)
-		{
-			printf("\tEvent type=%u, ts=%llu, tid=%llu, len=%u\n",
-				   pevent->type,
-				   (long long unsigned)pevent->ts_ns,
-				   (long long unsigned)pevent->tid,
-				   pevent->len);
-		}
+
+		printf("\tEvent type=%u, ts=%llu, tid=%llu, len=%u\n",
+			   pevent->type,
+			   (long long unsigned)pevent->ts_ns,
+			   (long long unsigned)pevent->tid,
+			   pevent->len);
 	}
 }
 
