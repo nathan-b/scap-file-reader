@@ -196,7 +196,7 @@ void print_event(const event_header* const pevent)
 	}
 }
 
-void print_proc(void* context, scap_t* handle, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo* fdinfo)
+void print_proc(void* context, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo* fdinfo)
 {
 	if (!g_print_procs && !g_print_threads && g_pl_len == 0)
 	{

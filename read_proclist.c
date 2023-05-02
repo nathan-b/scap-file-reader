@@ -576,7 +576,7 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 		{
 			proclist->m_proc_callback(
 				proclist->m_proc_callback_context,
-				proclist->m_main_handle, tinfo.tid, &tinfo, NULL);
+				tinfo.tid, &tinfo, NULL);
 		}
 
 		if(sub_len && subreadsize != sub_len)
