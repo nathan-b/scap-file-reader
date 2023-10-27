@@ -1,8 +1,13 @@
+#include <stdbool.h>
 #include <stdint.h>
 
+#include "scap_redefs.h"
+
+#include <scap_const.h>
+#include <scap_limits.h>
+#include <scap_procs.h>
 #include <scap_savefile.h>
 #include <scap_reader.h>
-#include <scap.h>
 
 #define CHECK_READ_SIZE_ERR(read_size, expected_size, error) \
 	if(read_size != expected_size) \
@@ -564,7 +569,9 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 			// Structure copy
 			*ntinfo = tinfo;
 
+			/*
 			HASH_ADD_INT64(proclist->m_proclist, tid, ntinfo);
+			*/
 			if(uth_status != SCAP_SUCCESS)
 			{
 				free(ntinfo);
@@ -574,9 +581,7 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 		}
 		else
 		{
-			proclist->m_proc_callback(
-				proclist->m_proc_callback_context,
-				tinfo.tid, &tinfo, NULL);
+			proclist->m_proc_callback(proclist->m_proc_callback_context, tinfo.tid, &tinfo, NULL);
 		}
 
 		if(sub_len && subreadsize != sub_len)

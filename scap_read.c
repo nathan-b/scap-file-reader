@@ -6,8 +6,10 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "scap_redefs.h"
+
+#include <scap_procs.h>
 #include <scap_savefile.h>
-#include <scap.h>
 
 #include "bufscap.h"
 #include "largest_block.h"
