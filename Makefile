@@ -8,7 +8,7 @@ FALCO_LIBS=$(OUTDIR)/falco_libs
 INCLUDES+=-I $(FALCO_LIBS)/userspace/libscap
 INCLUDES+=-I $(FALCO_LIBS)/userspace/libscap/engine/savefile
 
-CFILES=scap_read.c read_proclist.c
+CFILES=scap_read.c read_proclist.c bufscap.c
 
 all: debug
 
@@ -26,4 +26,3 @@ $(FALCO_LIBS):
 
 clean:
 	-rm -rf $(OUTPUT) $(OUTDIR)
-
