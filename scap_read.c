@@ -13,6 +13,7 @@
 
 #include "bufscap.h"
 #include "largest_block.h"
+#include "block_types.h"
 
 #define BYTE_ORDER_MAGIC 0x1A2B3C4D
 #define SHB_BLOCK_TYPE 0x0A0D0D0A
@@ -215,7 +216,10 @@ int32_t scap_read(const char* filename)
 	}
 	else
 	{
-		printf("block_header: block_type=0x%x, block_total_len=%u\n", bh.block_type, bh.block_total_length);
+		printf("%s: block_header: block_type=0x%x, block_total_len=%u\n",
+		       get_block_desc(bh.block_type),
+					 bh.block_type,
+					 bh.block_total_length);
 		printf("section_header_block: \n\tbyte_order_magic=0x%x,\n\tversion=%d.%d\n",
 		       sh.byte_order_magic,
 		       sh.major_version,
@@ -253,7 +257,10 @@ int32_t scap_read(const char* filename)
 		}
 		else if (g_verbose)
 		{
-			printf("block_header: block_type=0x%x, block_total_len=%u\n", bh.block_type, bh.block_total_length);
+			printf("block_header: %s -- block_type=0x%x, block_total_len=%u\n",
+			       get_block_desc(bh.block_type),
+						 bh.block_type,
+						 bh.block_total_length);
 		}
 
 		//
@@ -362,7 +369,7 @@ done:
 		printf("Biggest blocks:\n");
 		for (dl_list_node* n = biggest_blocks.head; n && n != biggest_blocks.tail; n = n->next)
 		{
-			printf("\t%u bytes: block type 0x%x\n", n->value, n->data);
+			printf("\t%u bytes: block type 0x%x (%s)\n", n->value, n->data, get_block_desc(n->data));
 		}
 	}
 	return ret;
