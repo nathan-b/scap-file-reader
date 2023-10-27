@@ -10,6 +10,7 @@
 #include <scap.h>
 
 #include "bufscap.h"
+#include "largest_block.h"
 
 #define BYTE_ORDER_MAGIC 0x1A2B3C4D
 #define SHB_BLOCK_TYPE 0x0A0D0D0A
@@ -48,7 +49,7 @@ typedef struct
 	event_header header;
 } event_section_header_no_flags;
 
-
+dl_list biggest_blocks;  // Track the largest blocks for mem profiling
 
 ////////////////////////////
 // Globals
@@ -58,6 +59,7 @@ bool g_verbose = false;
 bool g_print_procs = false;
 bool g_print_threads = false;
 bool g_print_events = false;
+bool g_block_profiling = false;
 uint64_t g_pid_list[64] = {0};
 uint32_t g_pl_len = 0;
 char* g_arg_search = NULL;
@@ -253,6 +255,11 @@ int32_t scap_read(const char* filename)
 		}
 
 		//
+		// Track the largest blocks for mem profiling
+		//
+		biggest_blocks = insert(bh.block_total_length, bh.block_type, biggest_blocks);
+
+		//
 		// Read the whole block up to the trailer
 		//
 		int expected_len = bh.block_total_length - sizeof(bh) - sizeof(bt);
@@ -347,6 +354,15 @@ done:
 	{
 		free(readbuf);
 	}
+
+	if (g_block_profiling)
+	{
+		printf("Biggest blocks:\n");
+		for (dl_list_node* n = biggest_blocks.head; n && n != biggest_blocks.tail; n = n->next)
+		{
+			printf("\t%u bytes: block type 0x%x\n", n->value, n->data);
+		}
+	}
 	return ret;
 }
 
@@ -361,6 +377,7 @@ void usage(const char* progname)
 	printf("          -P: Print processes\n");
 	printf("          -t: Do not print threads\n");
 	printf("          -T: Print threads\n");
+	printf("          -b: Print block mem profiling information\n");
 }
 
 int main(int argc, char** argv)
@@ -392,6 +409,9 @@ int main(int argc, char** argv)
 				break;
 			case 'E':
 				g_print_events = true;
+				break;
+			case 'b':
+				g_block_profiling = true;
 				break;
 			case 'l':
 				g_pid_list[g_pl_len++] = strtoull(argv[++i], NULL, 10);

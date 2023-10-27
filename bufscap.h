@@ -1,8 +1,9 @@
-/************************************
- * SCAP file reader
- *
- * Reads an scap file from a memory buffer
- */
+#ifndef BUFSCAP_H
+#define BUFSCAP_H
+///////////////////////////////
+// SCAP file reader
+//
+// Reads an scap file from a memory buffer
 
 #include <stdint.h>
 
@@ -30,3 +31,5 @@ extern int bufscap_close(struct scap_reader* r);
 extern scap_reader_t* build_reader_from_buffer(const uint8_t* const buf, int64_t len);
 
 extern void free_reader(scap_reader_t* r);
+
+#endif
