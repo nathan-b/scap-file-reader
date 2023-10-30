@@ -78,12 +78,6 @@ void print_event(const event_header* const pevent)
 {
 	if (g_print_events && pevent)
 	{
-		if (g_first_ns == 0)
-		{
-			g_first_ns = pevent->ts_ns;
-		}
-		g_last_ns = pevent->ts_ns;
-
 		printf("\tEvent type=%u, ts=%llu, tid=%llu, len=%u\n",
 			   pevent->type,
 			   (long long unsigned)pevent->ts_ns,
@@ -158,6 +152,11 @@ void handle_event(block_header* bh, const uint8_t* const buffer, uint32_t len)
 {
 	// Flags
 	event_section_header_flags* esh = (event_section_header_flags*)buffer;
+	if (g_first_ns == 0)
+	{
+		g_first_ns = esh->header.ts_ns;
+	}
+	g_last_ns = esh->header.ts_ns;
 	if (g_verbose)
 	{
 		printf("\tcpuid=%hu flags=0x%x\n", esh->cpuid, esh->flags);
@@ -169,6 +168,11 @@ void handle_event_no_flags(block_header* bh, const uint8_t* const buffer, uint32
 {
 	// No flags
 	event_section_header_no_flags* esh = (event_section_header_no_flags*)buffer;
+	if (g_first_ns == 0)
+	{
+		g_first_ns = esh->header.ts_ns;
+	}
+	g_last_ns = esh->header.ts_ns;
 	if (g_verbose)
 	{
 		printf("\tcpuid=%hu flags=0x0\n", esh->cpuid);
@@ -410,37 +414,37 @@ int main(int argc, char** argv)
 		{
 			switch (argv[i][1])
 			{
-			case 'v':
+			case 'v': // Verbose
 				g_verbose = true;
 				break;
-			case 'p':
+			case 'p': // Print procs from the proc table
 				g_print_procs = false;
 				break;
 			case 'P':
 				g_print_procs = true;
 				break;
-			case 't':
+			case 't': // Print threads from the proc table
 				g_print_threads = false;
 				break;
 			case 'T':
 				g_print_threads = true;
 				break;
-			case 'e':
+			case 'e': // Print event blocks
 				g_print_events = false;
 				break;
 			case 'E':
 				g_print_events = true;
 				break;
-			case 'b':
+			case 'b': // Show top 10 blocks by size
 				g_block_profiling = true;
 				break;
-			case 'l':
+			case 'l': // Add the given PID to the PID list
 				g_pid_list[g_pl_len++] = strtoull(argv[++i], NULL, 10);
 				break;
-			case 'a':
+			case 'a': // Search for a specific arg in the list of proc command lines
 				g_arg_search = argv[++i];
 				break;
-			case 'n':
+			case 'n': // Search for a specific proc in the list of procs
 				g_comm_search = argv[++i];
 				break;
 			default:
