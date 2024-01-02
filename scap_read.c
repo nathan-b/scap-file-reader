@@ -8,6 +8,7 @@
 
 #include "scap_redefs.h"
 
+#include <scap_const.h>
 #include <scap_procs.h>
 #include <scap_savefile.h>
 
@@ -90,12 +91,11 @@ void print_event(const event_header* const pevent)
 			   pevent->len);
 	}
 }
-
-void print_proc(void* context, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo* fdinfo)
+int print_proc(void* context, char* error, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo* fdinfo, scap_threadinfo** new_tinfo)
 {
 	if (!g_print_procs && !g_print_threads && g_pl_len == 0)
 	{
-		return;
+		return SCAP_FAILURE;
 	}
 
 	if (g_pl_len > 0)
@@ -112,7 +112,7 @@ void print_proc(void* context, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo*
 		}
 		if (!found)
 		{
-			return;
+			return SCAP_SUCCESS;
 		}
 	}
 	else if (g_print_procs)
@@ -120,7 +120,7 @@ void print_proc(void* context, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo*
 		// Only proceed if thread is main thread for process
 		if (tid != tinfo->pid)
 		{
-			return;
+			return SCAP_SUCCESS;
 		}
 	}
 
@@ -128,7 +128,7 @@ void print_proc(void* context, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo*
 	{
 		if (strcmp(g_comm_search, tinfo->comm) != 0)
 		{
-			return;
+			return SCAP_SUCCESS;
 		}
 	}
 
@@ -151,6 +151,7 @@ void print_proc(void* context, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo*
 			}
 		}
 	}
+	return SCAP_SUCCESS;
 }
 
 void handle_event(block_header* bh, const uint8_t* const buffer, uint32_t len)
@@ -380,17 +381,28 @@ done:
 void usage(const char* progname)
 {
 	printf("Usage: %s [-v] [-p|P] [-e|E] [-t|-T] <scap file>\n", progname);
+	printf("          -a [arg]: Limit output to processes with [arg] as one of its arguments\n");
+	printf("          -b: Print block profiles\n");
 	printf("          -e: Do not print events\n");
 	printf("          -E: Print events\n");
+	printf("          -l [pid]: Limit output to processes with [pid] as its PID (can be repeated 64 times)\n");
+	printf("          -n [comm]: Limit output to processes with [comm] as command name\n");
 	printf("          -p: Do not print processes\n");
 	printf("          -P: Print processes\n");
 	printf("          -t: Do not print threads\n");
 	printf("          -T: Print threads\n");
+	printf("          -v: Enable verbose operation\n");
 	printf("          -b: Print block mem profiling information\n");
 }
 
 int main(int argc, char** argv)
 {
+	// No arguments provided, print usage
+	if (argc == 1)
+	{
+		usage(argv[0]);
+		return -1;
+	}
 	// Command line parsing (this is garbage, I know)
 	for (int i = 1; i < argc; ++i)
 	{

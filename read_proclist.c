@@ -581,7 +581,11 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 		}
 		else
 		{
-			proclist->m_proc_callback(proclist->m_proc_callback_context, tinfo.tid, &tinfo, NULL);
+			int ret = proclist->m_proc_callback(proclist->m_proc_callback_context, error, tinfo.tid, &tinfo, NULL, NULL);
+			if (ret == SCAP_FAILURE)
+			{
+				return ret;
+			}
 		}
 
 		if(sub_len && subreadsize != sub_len)
