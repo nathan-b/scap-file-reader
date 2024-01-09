@@ -1,1 +1,4 @@
 build/*
+zig-out
+zig-cache
+*.scap

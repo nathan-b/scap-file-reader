@@ -1,0 +1,11 @@
+.{
+    // TODO: zlib link
+    .name = "scap-file-reader",
+    .version = "0.0.0",
+    .dependencies = .{
+        .zlib = .{
+            .url = "https://github.com/andrewrk/libz/archive/9a58674e2445e15692ff865bcfa86708cadda67b.tar.gz",
+            .hash = "122082e431e1f47e1db9ec37a3f83dfecc751ea8bf37466eb4bb65d3483bd9927944",
+        },
+    },
+}
