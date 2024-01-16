@@ -1,5 +1,4 @@
 .{
-    // TODO: zlib link
     .name = "scap-file-reader",
     .version = "0.0.0",
     .dependencies = .{
