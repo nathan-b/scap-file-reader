@@ -128,7 +128,6 @@ pub const ProcList = struct {
             else
                 null;
 
-            //const init_count = counting.bytes_read;
             const loginuid: ?i32 = if (sub_len > 0 and counting.bytes_read + @sizeOf(i32) <= sub_len)
                 try reader.readIntLittle(i32)
             else
@@ -228,7 +227,7 @@ pub const ProcList = struct {
         };
     }
 
-    // caller owns memory via allocator, not very efficient because we allocate
+    // Caller owns memory via allocator, not very efficient because we allocate
     // temporary memory then immediately copy it, but it's a bit easier to keep
     // track of fields
     fn read_varlen(allocator: Allocator, reader: anytype) ![:0]u8 {
