@@ -23,7 +23,7 @@ const block_names = std.ComptimeStringMap([:0]const u8, .{
     .{ "EVF", "Event with Flags" },
 });
 
-export fn get_block_desc(block_type: u32) ?[*:0]const u8 {
+pub export fn get_block_desc(block_type: u32) ?[*:0]const u8 {
     @setEvalBranchQuota(30000); // If you exceed the branch quota then bump it
 
     inline for (@typeInfo(c).Struct.decls) |decl| {

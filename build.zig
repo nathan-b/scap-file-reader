@@ -22,7 +22,7 @@ pub fn build(b: *Build) void {
     block_types.addIncludePath(.{ .path = "." });
 
     const scap_read = b.addExecutable(.{
-        .name = "scap_read",
+        .name = "scap-read",
         .target = target,
         .optimize = optimize,
         .link_libc = true,
@@ -49,4 +49,61 @@ pub fn build(b: *Build) void {
 
     const run_step = b.step("run", "Run scap reader");
     run_step.dependOn(&scap_read_run.step);
+
+    const ps = b.addExecutable(.{
+        .name = "scap-ps",
+        .root_source_file = .{ .path = "src/ps.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    ps.addIncludePath(.{ .path = "deps/falco-libs/userspace/libscap" });
+    ps.addIncludePath(.{ .path = "." });
+    ps.addIncludePath(.{ .path = "deps/falco-libs/driver" });
+    b.installArtifact(ps);
+
+    const ps_run = b.addRunArtifact(ps);
+    if (b.args) |args|
+        ps_run.addArgs(args);
+
+    const ps_step = b.step("ps", "Run ps program on capture");
+    ps_step.dependOn(&ps_run.step);
+
+    const dump = b.addExecutable(.{
+        .name = "scap-dump",
+        .root_source_file = .{ .path = "src/dump.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    dump.addIncludePath(.{ .path = "deps/falco-libs/userspace/libscap" });
+    dump.addIncludePath(.{ .path = "." });
+    dump.addIncludePath(.{ .path = "deps/falco-libs/driver" });
+    b.installArtifact(dump);
+
+    const dump_run = b.addRunArtifact(dump);
+    if (b.args) |args|
+        dump_run.addArgs(args);
+
+    const dump_step = b.step("dump", "Dump scap contents");
+    dump_step.dependOn(&dump_run.step);
+
+    const cgls = b.addExecutable(.{
+        .name = "scap-cgls",
+        .root_source_file = .{ .path = "src/cgls.zig" },
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    cgls.addIncludePath(.{ .path = "deps/falco-libs/userspace/libscap" });
+    cgls.addIncludePath(.{ .path = "." });
+    cgls.addIncludePath(.{ .path = "deps/falco-libs/driver" });
+    b.installArtifact(cgls);
+
+    const cgls_run = b.addRunArtifact(cgls);
+    if (b.args) |args|
+        cgls_run.addArgs(args);
+
+    const cgls_step = b.step("cgls", "List cgroups and their processes");
+    cgls_step.dependOn(&cgls_run.step);
 }
