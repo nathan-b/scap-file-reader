@@ -1,11 +1,4 @@
-#include "bufscap.h"
-#include "largest_block.h"
-#include "scap_redefs.h"
-
 #include <errno.h>
-#include <scap_const.h>
-#include <scap_procs.h>
-#include <scap_savefile.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -13,10 +6,21 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "scap_redefs.h"
+
+#include <scap_const.h>
+#include <scap_procs.h>
+#include <scap_savefile.h>
+
+#include "bufscap.h"
+#include "largest_block.h"
+
 #define BYTE_ORDER_MAGIC 0x1A2B3C4D
 #define SHB_BLOCK_TYPE 0x0A0D0D0A
 
 #define NS_PER_MS 1000000
+
+
 
 dl_list biggest_blocks;  // Track the largest blocks for mem profiling
 
@@ -37,15 +41,8 @@ char* g_comm_search = NULL;
 ////////////////////////////
 // Block handlers
 
-extern int32_t scap_read_proclist(scap_reader_t* r,
-                                  uint32_t block_length,
-                                  uint32_t block_type,
-                                  struct scap_proclist* proclist,
-                                  char* error);
-
-extern void print_event_line(const event_header* const pevent);
-
-extern const char* get_block_desc(uint32_t block_type);
+extern int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t block_type, struct scap_proclist *proclist, char *error);
+extern const char *get_block_desc(uint32_t block_type);
 
 void print_event(const event_header* const pevent)
 {
@@ -57,15 +54,14 @@ void print_event(const event_header* const pevent)
 		}
 		g_last_ns = pevent->ts_ns;
 
-		print_event_line(pevent);
+		printf("\tEvent type=%u, ts=%llu, tid=%llu, len=%u\n",
+			   pevent->type,
+			   (long long unsigned)pevent->ts_ns,
+			   (long long unsigned)pevent->tid,
+			   pevent->len);
 	}
 }
-int print_proc(void* context,
-               char* error,
-               int64_t tid,
-               scap_threadinfo* tinfo,
-               scap_fdinfo* fdinfo,
-               scap_threadinfo** new_tinfo)
+int print_proc(void* context, char* error, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo* fdinfo, scap_threadinfo** new_tinfo)
 {
 	if (!g_print_procs && !g_print_threads && g_pl_len == 0)
 	{
@@ -106,14 +102,12 @@ int print_proc(void* context,
 		}
 	}
 
-	printf("\tProc %s has PID %lli, TID %lli, PTID %lli, flags %x, vpid=%lli, cgroups: %s\n",
+	printf("\tProc %s has PID %lli, TID %lli, PTID %lli, flags %x\n",
 	       tinfo->comm,
-	       (long long)tinfo->pid,
-	       (long long)tid,
-	       (long long)tinfo->ptid,
-	       tinfo->flags,
-	       tinfo->vpid,
-	       tinfo->cgroups);
+		   (long long)tinfo->pid,
+		   (long long)tid,
+		   (long long)tinfo->ptid,
+		   tinfo->flags);
 
 	if (g_arg_search)
 	{
@@ -183,7 +177,8 @@ int32_t scap_read(const char* filename)
 	}
 
 	// Read the section header block
-	if (fread(&bh, 1, sizeof(bh), f) != sizeof(bh) || fread(&sh, 1, sizeof(sh), f) != sizeof(sh) ||
+	if (fread(&bh, 1, sizeof(bh), f) != sizeof(bh) ||
+	    fread(&sh, 1, sizeof(sh), f) != sizeof(sh) ||
 	    fread(&bt, 1, sizeof(bt), f) != sizeof(bt))
 	{
 		fprintf(stderr, "Error reading from file %s: %d (%s)\n", filename, errno, strerror(errno));
@@ -194,8 +189,8 @@ int32_t scap_read(const char* filename)
 	{
 		printf("%s: block_header: block_type=0x%x, block_total_len=%u\n",
 		       get_block_desc(bh.block_type),
-		       bh.block_type,
-		       bh.block_total_length);
+					 bh.block_type,
+					 bh.block_total_length);
 		printf("section_header_block: \n\tbyte_order_magic=0x%x,\n\tversion=%d.%d\n",
 		       sh.byte_order_magic,
 		       sh.major_version,
@@ -235,8 +230,8 @@ int32_t scap_read(const char* filename)
 		{
 			printf("block_header: %s -- block_type=0x%x, block_total_len=%u\n",
 			       get_block_desc(bh.block_type),
-			       bh.block_type,
-			       bh.block_total_length);
+						 bh.block_type,
+						 bh.block_total_length);
 		}
 
 		//
@@ -263,10 +258,7 @@ int32_t scap_read(const char* filename)
 		int read_len = fread(readbuf, 1, expected_len, f);
 		if (read_len != expected_len)
 		{
-			fprintf(stderr,
-			        "Could not read block (expected length of %d, got length of %d)\n",
-			        expected_len,
-			        read_len);
+			fprintf(stderr, "Could not read block (expected length of %d, got length of %d)\n", expected_len, read_len);
 			ret = 1;
 			goto done;
 		}
@@ -302,6 +294,8 @@ int32_t scap_read(const char* filename)
 		case PL_BLOCK_TYPE_V3_INT:
 			handle_proc_list(&bh, readbuf, read_len);
 			break;
+		default:
+			// Carry on
 		}
 
 		//
@@ -331,10 +325,10 @@ done:
 	if (ret == 0)
 	{
 		printf("File is correctly formed and contains %u events between %llu and %llu (%llu ms)\n",
-		       num_events,
-		       (long long unsigned)g_first_ns,
-		       (long long unsigned)g_last_ns,
-		       (long long unsigned)((g_last_ns - g_first_ns) / NS_PER_MS));
+				num_events,
+				(long long unsigned)g_first_ns,
+				(long long unsigned)g_last_ns,
+				(long long unsigned)((g_last_ns - g_first_ns) / NS_PER_MS));
 	}
 	if (readbuf)
 	{
@@ -346,10 +340,7 @@ done:
 		printf("Biggest blocks:\n");
 		for (dl_list_node* n = biggest_blocks.head; n && n != biggest_blocks.tail; n = n->next)
 		{
-			printf("\t%u bytes: block type 0x%x (%s)\n",
-			       n->value,
-			       n->data,
-			       get_block_desc(n->data));
+			printf("\t%u bytes: block type 0x%x (%s)\n", n->value, n->data, get_block_desc(n->data));
 		}
 	}
 	return ret;
@@ -364,9 +355,7 @@ void usage(const char* progname)
 	printf("          -b: Print block profiles\n");
 	printf("          -e: Do not print events\n");
 	printf("          -E: Print events\n");
-	printf(
-	    "          -l [pid]: Limit output to processes with [pid] as its PID (can be repeated 64 "
-	    "times)\n");
+	printf("          -l [pid]: Limit output to processes with [pid] as its PID (can be repeated 64 times)\n");
 	printf("          -n [comm]: Limit output to processes with [comm] as command name\n");
 	printf("          -p: Do not print processes\n");
 	printf("          -P: Print processes\n");
@@ -424,9 +413,6 @@ int main(int argc, char** argv)
 			case 'n':
 				g_comm_search = argv[++i];
 				break;
-			case 'h':
-				usage(argv[0]);
-				return 0;
 			default:
 				fprintf(stderr, "Unknown switch %s\n", argv[i]);
 				usage(argv[0]);
