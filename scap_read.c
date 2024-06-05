@@ -61,6 +61,7 @@ uint64_t g_first_ns = 0;
 uint64_t g_last_ns = 0;
 bool g_verbose = false;
 bool g_print_procs = false;
+bool g_print_args = false;
 bool g_print_threads = false;
 bool g_print_events = false;
 bool g_block_profiling = false;
@@ -133,10 +134,23 @@ int print_proc(void* context, char* error, int64_t tid, scap_threadinfo* tinfo, 
 		   (long long)tinfo->ptid,
 		   tinfo->flags);
 
+	if (g_print_args)
+	{
+		int c = 0;
+		for (uint32_t i = 0; i < tinfo->args_len; ++i)
+		{
+			if (tinfo->args[i] == '\0')
+			{
+				printf("\t\t%s\n", &tinfo->args[c]);
+				c = i + 1;
+			}
+		}
+	}
+
 	if (g_arg_search)
 	{
 		uint32_t len = strlen(g_arg_search);
-		for (uint32_t i = 0; i < tinfo->args_len; ++i)
+		for (uint32_t i = 0; i < tinfo->args_len - len; ++i)
 		{
 			if (memcmp(&tinfo->args[i], g_arg_search, len) == 0)
 			{
@@ -440,6 +454,9 @@ int main(int argc, char** argv)
 				break;
 			case 'l': // Add the given PID to the PID list
 				g_pid_list[g_pl_len++] = strtoull(argv[++i], NULL, 10);
+				break;
+			case 'A': // Print process arguments (requires -P to be useful)
+				g_print_args = true;
 				break;
 			case 'a': // Search for a specific arg in the list of proc command lines
 				g_arg_search = argv[++i];
