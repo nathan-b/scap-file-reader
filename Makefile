@@ -5,6 +5,7 @@ OUTDIR=build
 OUTPUT=$(OUTDIR)/scap_read
 
 FALCO_LIBS=$(OUTDIR)/falco_libs
+INCLUDES+=-I $(FALCO_LIBS)/userspace
 INCLUDES+=-I $(FALCO_LIBS)/userspace/libscap
 INCLUDES+=-I $(FALCO_LIBS)/userspace/libscap/engine/savefile
 INCLUDES+=-I $(OUTDIR)

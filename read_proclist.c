@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -86,7 +87,7 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 			break;
 		default:
 			fprintf(stderr, "corrupted process block type (fd1)");
-			ASSERT(false);
+			assert(false);
 			return SCAP_FAILURE;
 		}
 
@@ -136,7 +137,7 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 			break;
 		default:
 			fprintf(stderr, "corrupted process block type (fd1)");
-			ASSERT(false);
+			assert(false);
 			return SCAP_FAILURE;
 		}
 
@@ -165,7 +166,7 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 			break;
 		default:
 			fprintf(stderr, "corrupted process block type (fd1)");
-			ASSERT(false);
+			assert(false);
 			return SCAP_FAILURE;
 		}
 
@@ -253,7 +254,7 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 			break;
 		default:
 			fprintf(stderr, "corrupted process block type (fd1)");
-			ASSERT(false);
+			assert(false);
 			return SCAP_FAILURE;
 		}
 
@@ -494,7 +495,7 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 			break;
 		default:
 			fprintf(stderr, "corrupted process block type (fd1)");
-			ASSERT(false);
+			assert(false);
 			return SCAP_FAILURE;
 		}
 
@@ -617,7 +618,7 @@ int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t blo
 	if(totreadsize > block_length)
 	{
 		fprintf(stderr, "scap_read_proclist read more %lu than a block %u", totreadsize, block_length);
-		ASSERT(false);
+		assert(false);
 		return SCAP_FAILURE;
 	}
 	padding_len = block_length - totreadsize;
