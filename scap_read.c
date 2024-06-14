@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "scap_redefs.h"
@@ -202,6 +203,24 @@ void handle_proc_list(block_header* bh, const uint8_t* const buffer, uint32_t le
 	scap_read_proclist(sr, len, bh->block_type, &pl, NULL);
 }
 
+
+///////////////////
+// Convert the given timestamp to human-readable time
+bool ts_to_date(uint64_t ts_ns, char* outbuf, int buf_len)
+{
+	time_t seconds = ts_ns / 1000000000;
+	struct tm* utc_time = gmtime(&seconds);
+
+	if (!utc_time) {
+		perror("gmtime");
+		return false;
+	}
+
+	strftime(outbuf, buf_len, "%Y-%m-%d %H:%M:%S UTC", utc_time);
+
+	return true;
+}
+
 ////////////////////
 // Parse through the scap file
 int32_t scap_read(const char* filename)
@@ -372,10 +391,19 @@ int32_t scap_read(const char* filename)
 done:
 	if (ret == 0)
 	{
-		printf("File is correctly formed and contains %u events between %llu and %llu (%llu ms)\n",
+#define BUF_SZ 120
+		char start_date[BUF_SZ] = {0};
+		char end_date[BUF_SZ] = {0};
+
+		ts_to_date(g_first_ns, start_date, BUF_SZ);
+		ts_to_date(g_last_ns, end_date, BUF_SZ);
+
+		printf("File is correctly formed and contains %u events between %llu (%s) and %llu (%s) (%llu ms)\n",
 				num_events,
 				(long long unsigned)g_first_ns,
+				start_date,
 				(long long unsigned)g_last_ns,
+				end_date,
 				(long long unsigned)((g_last_ns - g_first_ns) / NS_PER_MS));
 	}
 	if (readbuf)
@@ -472,6 +500,7 @@ int main(int argc, char** argv)
 		}
 		else
 		{
+			g_first_ns = 0;
 			printf("Capture file %s\n=======================================\n", argv[i]);
 			scap_read(argv[i]);
 		}
