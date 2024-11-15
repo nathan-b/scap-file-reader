@@ -1,4 +1,12 @@
+#include "block_types.h"
+#include "bufscap.h"
+#include "largest_block.h"
+#include "scap_redefs.h"
+
 #include <errno.h>
+#include <scap_const.h>
+#include <scap_procs.h>
+#include <scap_savefile.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -6,16 +14,6 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "scap_redefs.h"
-
-#include <scap_const.h>
-#include <scap_procs.h>
-#include <scap_savefile.h>
-
-#include "bufscap.h"
-#include "largest_block.h"
-#include "block_types.h"
 
 #define BYTE_ORDER_MAGIC 0x1A2B3C4D
 #define SHB_BLOCK_TYPE 0x0A0D0D0A
@@ -74,20 +72,29 @@ char* g_comm_search = NULL;
 ////////////////////////////
 // Block handlers
 
-extern int32_t scap_read_proclist(scap_reader_t* r, uint32_t block_length, uint32_t block_type, struct scap_proclist *proclist, char *error);
+extern int32_t scap_read_proclist(scap_reader_t* r,
+                                  uint32_t block_length,
+                                  uint32_t block_type,
+                                  struct scap_proclist* proclist,
+                                  char* error);
 
 void print_event(const event_header* const pevent)
 {
 	if (g_print_events && pevent)
 	{
 		printf("\tEvent type=%u, ts=%llu, tid=%llu, len=%u\n",
-			   pevent->type,
-			   (long long unsigned)pevent->ts_ns,
-			   (long long unsigned)pevent->tid,
-			   pevent->len);
+		       pevent->type,
+		       (long long unsigned)pevent->ts_ns,
+		       (long long unsigned)pevent->tid,
+		       pevent->len);
 	}
 }
-int print_proc(void* context, char* error, int64_t tid, scap_threadinfo* tinfo, scap_fdinfo* fdinfo, scap_threadinfo** new_tinfo)
+int print_proc(void* context,
+               char* error,
+               int64_t tid,
+               scap_threadinfo* tinfo,
+               scap_fdinfo* fdinfo,
+               scap_threadinfo** new_tinfo)
 {
 	if (!g_print_procs && !g_print_threads && g_pl_len == 0)
 	{
@@ -130,10 +137,10 @@ int print_proc(void* context, char* error, int64_t tid, scap_threadinfo* tinfo, 
 
 	printf("\tProc %s has PID %lli, TID %lli, PTID %lli, flags %x\n",
 	       tinfo->comm,
-		   (long long)tinfo->pid,
-		   (long long)tid,
-		   (long long)tinfo->ptid,
-		   tinfo->flags);
+	       (long long)tinfo->pid,
+	       (long long)tid,
+	       (long long)tinfo->ptid,
+	       tinfo->flags);
 
 	if (g_print_args)
 	{
@@ -203,7 +210,6 @@ void handle_proc_list(block_header* bh, const uint8_t* const buffer, uint32_t le
 	scap_read_proclist(sr, len, bh->block_type, &pl, NULL);
 }
 
-
 ///////////////////
 // Convert the given timestamp to human-readable time
 bool ts_to_date(uint64_t ts_ns, char* outbuf, int buf_len)
@@ -211,7 +217,8 @@ bool ts_to_date(uint64_t ts_ns, char* outbuf, int buf_len)
 	time_t seconds = ts_ns / 1000000000;
 	struct tm* utc_time = gmtime(&seconds);
 
-	if (!utc_time) {
+	if (!utc_time)
+	{
 		perror("gmtime");
 		return false;
 	}
@@ -256,8 +263,8 @@ int32_t scap_read(const char* filename)
 	{
 		printf("%s: block_header: block_type=0x%x, block_total_len=%u\n",
 		       get_block_desc(bh.block_type),
-					 bh.block_type,
-					 bh.block_total_length);
+		       bh.block_type,
+		       bh.block_total_length);
 		printf("section_header_block: \n\tbyte_order_magic=0x%x,\n\tversion=%d.%d\n",
 		       sh.byte_order_magic,
 		       sh.major_version,
@@ -297,8 +304,8 @@ int32_t scap_read(const char* filename)
 		{
 			printf("block_header: %s -- block_type=0x%x, block_total_len=%u\n",
 			       get_block_desc(bh.block_type),
-						 bh.block_type,
-						 bh.block_total_length);
+			       bh.block_type,
+			       bh.block_total_length);
 		}
 
 		//
@@ -398,13 +405,15 @@ done:
 		ts_to_date(g_first_ns, start_date, BUF_SZ);
 		ts_to_date(g_last_ns, end_date, BUF_SZ);
 
-		printf("File is correctly formed and contains %u events between %llu (%s) and %llu (%s) (%llu ms)\n",
-				num_events,
-				(long long unsigned)g_first_ns,
-				start_date,
-				(long long unsigned)g_last_ns,
-				end_date,
-				(long long unsigned)((g_last_ns - g_first_ns) / NS_PER_MS));
+		printf(
+		    "File is correctly formed and contains %u events between %llu (%s) and %llu (%s) (%llu "
+		    "ms)\n",
+		    num_events,
+		    (long long unsigned)g_first_ns,
+		    start_date,
+		    (long long unsigned)g_last_ns,
+		    end_date,
+		    (long long unsigned)((g_last_ns - g_first_ns) / NS_PER_MS));
 	}
 	if (readbuf)
 	{
@@ -456,40 +465,40 @@ int main(int argc, char** argv)
 		{
 			switch (argv[i][1])
 			{
-			case 'v': // Verbose
+			case 'v':  // Verbose
 				g_verbose = true;
 				break;
-			case 'p': // Print procs from the proc table
+			case 'p':  // Print procs from the proc table
 				g_print_procs = false;
 				break;
 			case 'P':
 				g_print_procs = true;
 				break;
-			case 't': // Print threads from the proc table
+			case 't':  // Print threads from the proc table
 				g_print_threads = false;
 				break;
 			case 'T':
 				g_print_threads = true;
 				break;
-			case 'e': // Print event blocks
+			case 'e':  // Print event blocks
 				g_print_events = false;
 				break;
 			case 'E':
 				g_print_events = true;
 				break;
-			case 'b': // Show top 10 blocks by size
+			case 'b':  // Show top 10 blocks by size
 				g_block_profiling = true;
 				break;
-			case 'l': // Add the given PID to the PID list
+			case 'l':  // Add the given PID to the PID list
 				g_pid_list[g_pl_len++] = strtoull(argv[++i], NULL, 10);
 				break;
-			case 'A': // Print process arguments (requires -P to be useful)
+			case 'A':  // Print process arguments (requires -P to be useful)
 				g_print_args = true;
 				break;
-			case 'a': // Search for a specific arg in the list of proc command lines
+			case 'a':  // Search for a specific arg in the list of proc command lines
 				g_arg_search = argv[++i];
 				break;
-			case 'n': // Search for a specific proc in the list of procs
+			case 'n':  // Search for a specific proc in the list of procs
 				g_comm_search = argv[++i];
 				break;
 			default:
