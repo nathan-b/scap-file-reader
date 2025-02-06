@@ -54,20 +54,25 @@ typedef struct
 
 dl_list biggest_blocks;  // Track the largest blocks for mem profiling
 
+typedef struct
+{
+	bool verbose;
+	bool print_procs;
+	bool print_args;
+	bool print_threads;
+	bool print_events;
+	bool block_profiling;
+} opts_t;
+
 ////////////////////////////
 // Globals
 uint64_t g_first_ns = 0;
 uint64_t g_last_ns = 0;
-bool g_verbose = false;
-bool g_print_procs = false;
-bool g_print_args = false;
-bool g_print_threads = false;
-bool g_print_events = false;
-bool g_block_profiling = false;
 uint64_t g_pid_list[64] = {0};
 uint32_t g_pl_len = 0;
 char* g_arg_search = NULL;
 char* g_comm_search = NULL;
+opts_t g_opts = {0};
 
 ////////////////////////////
 // Block handlers
@@ -80,7 +85,7 @@ extern int32_t scap_read_proclist(scap_reader_t* r,
 
 void print_event(const event_header* const pevent)
 {
-	if (g_print_events && pevent)
+	if (g_opts.print_events && pevent)
 	{
 		printf("\tEvent type=%u, ts=%llu, tid=%llu, len=%u\n",
 		       pevent->type,
@@ -96,7 +101,7 @@ int print_proc(void* context,
                scap_fdinfo* fdinfo,
                scap_threadinfo** new_tinfo)
 {
-	if (!g_print_procs && !g_print_threads && g_pl_len == 0)
+	if (!g_opts.print_procs && !g_opts.print_threads && g_pl_len == 0)
 	{
 		return SCAP_FAILURE;
 	}
@@ -118,7 +123,7 @@ int print_proc(void* context,
 			return SCAP_SUCCESS;
 		}
 	}
-	else if (g_print_procs)
+	else if (g_opts.print_procs)
 	{
 		// Only proceed if thread is main thread for process
 		if (tid != tinfo->pid)
@@ -142,7 +147,7 @@ int print_proc(void* context,
 	       (long long)tinfo->ptid,
 	       tinfo->flags);
 
-	if (g_print_args)
+	if (g_opts.print_args)
 	{
 		int c = 0;
 		for (uint32_t i = 0; i < tinfo->args_len; ++i)
@@ -179,7 +184,7 @@ void handle_event(block_header* bh, const uint8_t* const buffer, uint32_t len)
 		g_first_ns = esh->header.ts_ns;
 	}
 	g_last_ns = esh->header.ts_ns;
-	if (g_verbose)
+	if (g_opts.verbose)
 	{
 		printf("\tcpuid=%hu flags=0x%x\n", esh->cpuid, esh->flags);
 	}
@@ -195,7 +200,7 @@ void handle_event_no_flags(block_header* bh, const uint8_t* const buffer, uint32
 		g_first_ns = esh->header.ts_ns;
 	}
 	g_last_ns = esh->header.ts_ns;
-	if (g_verbose)
+	if (g_opts.verbose)
 	{
 		printf("\tcpuid=%hu flags=0x0\n", esh->cpuid);
 	}
@@ -300,7 +305,7 @@ int32_t scap_read(const char* filename)
 			ret = 0;
 			goto done;
 		}
-		else if (g_verbose)
+		else if (g_opts.verbose)
 		{
 			printf("block_header: %s -- block_type=0x%x, block_total_len=%u\n",
 			       get_block_desc(bh.block_type),
@@ -382,7 +387,7 @@ int32_t scap_read(const char* filename)
 			ret = 1;
 			goto done;
 		}
-		if (g_verbose)
+		if (g_opts.verbose)
 		{
 			printf("block trailer: %u\n", bt);
 		}
@@ -420,7 +425,7 @@ done:
 		free(readbuf);
 	}
 
-	if (g_block_profiling)
+	if (g_opts.block_profiling)
 	{
 		printf("Biggest blocks:\n");
 		for (dl_list_node* n = biggest_blocks.head; n && n != biggest_blocks.tail; n = n->next)
@@ -437,7 +442,8 @@ void usage(const char* progname)
 {
 	printf("Usage: %s [-v] [-p|P] [-e|E] [-t|-T] <scap file>\n", progname);
 	printf("          -a [arg]: Limit output to processes with [arg] as one of its arguments\n");
-	printf("          -b: Print block profiles\n");
+	printf("          -A: Print process arguments (requires -P to be useful)\n");
+	printf("          -B: Print block profiles\n");
 	printf("          -e: Do not print events\n");
 	printf("          -E: Print events\n");
 	printf("          -l [pid]: Limit output to processes with [pid] as its PID (can be repeated 64 times)\n");
@@ -446,8 +452,7 @@ void usage(const char* progname)
 	printf("          -P: Print processes\n");
 	printf("          -t: Do not print threads\n");
 	printf("          -T: Print threads\n");
-	printf("          -v: Enable verbose operation\n");
-	printf("          -b: Print block mem profiling information\n");
+	printf("          -v: Enable verbose output\n");
 }
 
 int main(int argc, char** argv)
@@ -466,34 +471,34 @@ int main(int argc, char** argv)
 			switch (argv[i][1])
 			{
 			case 'v':  // Verbose
-				g_verbose = true;
+				g_opts.verbose = true;
 				break;
 			case 'p':  // Print procs from the proc table
-				g_print_procs = false;
+				g_opts.print_procs = false;
 				break;
 			case 'P':
-				g_print_procs = true;
+				g_opts.print_procs = true;
 				break;
 			case 't':  // Print threads from the proc table
-				g_print_threads = false;
+				g_opts.print_threads = false;
 				break;
 			case 'T':
-				g_print_threads = true;
+				g_opts.print_threads = true;
 				break;
 			case 'e':  // Print event blocks
-				g_print_events = false;
+				g_opts.print_events = false;
 				break;
 			case 'E':
-				g_print_events = true;
+				g_opts.print_events = true;
 				break;
-			case 'b':  // Show top 10 blocks by size
-				g_block_profiling = true;
+			case 'B':  // Show top 10 blocks by size
+				g_opts.block_profiling = true;
 				break;
 			case 'l':  // Add the given PID to the PID list
 				g_pid_list[g_pl_len++] = strtoull(argv[++i], NULL, 10);
 				break;
 			case 'A':  // Print process arguments (requires -P to be useful)
-				g_print_args = true;
+				g_opts.print_args = true;
 				break;
 			case 'a':  // Search for a specific arg in the list of proc command lines
 				g_arg_search = argv[++i];
