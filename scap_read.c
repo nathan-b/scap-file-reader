@@ -2,6 +2,7 @@
 #include "bufscap.h"
 #include "largest_block.h"
 #include "scap_redefs.h"
+#include <ppm_events_public.h>
 
 #include <errno.h>
 #include <scap_const.h>
@@ -33,7 +34,7 @@ typedef struct
 	uint64_t ts_ns;    // Timestamp, in nanoseconds from epoch
 	uint64_t tid;      // tid of the thread that generated this event
 	uint32_t len;      // Event length, including this header
-	uint16_t type;     // Event type
+	uint16_t type;     // Event type (ppm_event_code from ppm_events_public.h)
 	uint32_t nparams;  // Number of parameters to the event
 } event_header;
 
@@ -72,7 +73,13 @@ uint64_t g_pid_list[64] = {0};
 uint32_t g_pl_len = 0;
 char* g_arg_search = NULL;
 char* g_comm_search = NULL;
+uint32_t g_top_syscall_count = 0;
 opts_t g_opts = {0};
+
+
+extern const struct ppm_event_info g_event_info[];
+
+ppm_event_code g_event_counts[PPM_EVENT_MAX];
 
 ////////////////////////////
 // Block handlers
@@ -87,7 +94,8 @@ void print_event(const event_header* const pevent)
 {
 	if (g_opts.print_events && pevent)
 	{
-		printf("\tEvent type=%u, ts=%llu, tid=%llu, len=%u\n",
+		printf("\tEvent type=%s (%u), ts=%llu, tid=%llu, len=%u\n",
+		       g_event_info[pevent->type].name,
 		       pevent->type,
 		       (long long unsigned)pevent->ts_ns,
 		       (long long unsigned)pevent->tid,
@@ -188,6 +196,11 @@ void handle_event(block_header* bh, const uint8_t* const buffer, uint32_t len)
 	{
 		printf("\tcpuid=%hu flags=0x%x\n", esh->cpuid, esh->flags);
 	}
+	uint32_t evt_type = esh->header.type;
+	if (evt_type < PPM_EVENT_MAX)
+	{
+		++g_event_counts[PPME_MAKE_ENTER(evt_type)];
+	}
 	print_event(&esh->header);
 }
 
@@ -203,6 +216,11 @@ void handle_event_no_flags(block_header* bh, const uint8_t* const buffer, uint32
 	if (g_opts.verbose)
 	{
 		printf("\tcpuid=%hu flags=0x0\n", esh->cpuid);
+	}
+	uint32_t evt_type = esh->header.type;
+	if (evt_type < PPM_EVENT_MAX)
+	{
+		++g_event_counts[PPME_MAKE_ENTER(evt_type)];
 	}
 	print_event(&esh->header);
 }
@@ -433,6 +451,57 @@ done:
 			printf("\t%u bytes: block type 0x%x (%s)\n", n->value, n->data, get_block_desc(n->data));
 		}
 	}
+
+	if (g_top_syscall_count > 0)
+	{
+		int* biggest_indices = malloc(g_top_syscall_count * sizeof(*biggest_indices));
+		for (int i = 0; i < g_top_syscall_count; ++i)
+		{
+			biggest_indices[i] = -1;
+		}
+
+		// Walk through the event counts and get the top n
+		for (int i = 0; i < PPM_EVENT_MAX; ++i)
+		{
+			uint32_t c = g_event_counts[i];
+
+			enum
+			{
+				COMPARE,
+				SORT
+			} mode = COMPARE;
+			int carry = 0;
+			for (int j = 0; j < g_top_syscall_count; ++j)
+			{
+				if (mode == COMPARE) // Find where in the top n this one lands
+				{
+					int evt_ct = g_event_counts[biggest_indices[j]];
+					if (c > evt_ct) {
+						carry = biggest_indices[j];
+						biggest_indices[j] = i;
+						mode = SORT;
+					}
+				}
+				else // SORT -- shift everything else down one
+				{
+					int tmp = biggest_indices[j];
+					biggest_indices[j] = carry;
+					carry = tmp;
+				}
+			}
+		}
+
+		printf("Top %u syscalls:\n", g_top_syscall_count);
+		for (int i = 0; i < g_top_syscall_count; ++i)
+		{
+			int index = biggest_indices[i];
+			if (index < 0) continue;
+			printf("\t%s (%u): %u\n", g_event_info[index].name, index, g_event_counts[index]);
+		}
+
+		free(biggest_indices);
+	}
+
 	return ret;
 }
 
@@ -450,6 +519,7 @@ void usage(const char* progname)
 	printf("          -n [comm]: Limit output to processes with [comm] as command name\n");
 	printf("          -p: Do not print processes\n");
 	printf("          -P: Print processes\n");
+	printf("          -s [num]: Print the top num syscalls seen\n");
 	printf("          -t: Do not print threads\n");
 	printf("          -T: Print threads\n");
 	printf("          -v: Enable verbose output\n");
@@ -505,6 +575,9 @@ int main(int argc, char** argv)
 				break;
 			case 'n':  // Search for a specific proc in the list of procs
 				g_comm_search = argv[++i];
+				break;
+			case 's': // Print the top n syscalls seen in the capture
+				g_top_syscall_count = strtoul(argv[++i], NULL, 10);
 				break;
 			default:
 				fprintf(stderr, "Unknown switch %s\n", argv[i]);
