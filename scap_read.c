@@ -263,6 +263,10 @@ int32_t scap_read(const char* filename)
 	section_header sh;
 	uint32_t bt;  // Block trailer
 	uint32_t num_events = 0;
+	struct {
+		uint64_t total_fdlist_len;
+		uint64_t total_proclist_len;
+	} block_totals = {0, 0};
 
 	// Open the file
 	f = fopen(filename, "rb");
@@ -345,6 +349,7 @@ int32_t scap_read(const char* filename)
 			// We're going to need a bigger boat
 			free(readbuf);
 			readbuf = malloc(expected_len);
+			buf_len = expected_len;
 			if (!readbuf)
 			{
 				fprintf(stderr, "Could not allocate %d bytes of buffer memory\n", expected_len);
@@ -390,6 +395,12 @@ int32_t scap_read(const char* filename)
 		case PL_BLOCK_TYPE_V2_INT:
 		case PL_BLOCK_TYPE_V3_INT:
 			handle_proc_list(&bh, readbuf, read_len);
+			block_totals.total_proclist_len += read_len;
+			break;
+		case FDL_BLOCK_TYPE:
+		case FDL_BLOCK_TYPE_INT:
+		case FDL_BLOCK_TYPE_V2:
+			block_totals.total_fdlist_len += read_len;
 			break;
 		default:
 			// Carry on
@@ -450,6 +461,8 @@ done:
 		{
 			printf("\t%u bytes: block type 0x%x (%s)\n", n->value, n->data, get_block_desc(n->data));
 		}
+		printf("\tTotal proclist len: %llu\n", (long long unsigned)block_totals.total_proclist_len);
+		printf("\tTotal fdlist len: %llu\n", (long long unsigned)block_totals.total_fdlist_len);
 	}
 
 	if (g_top_syscall_count > 0)
